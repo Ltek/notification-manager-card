@@ -56,6 +56,16 @@ Every option below is fully point-and-click — no YAML required.
 
 ## Installation
 
+### Via HACS (recommended)
+
+[![Open your Home Assistant instance and open this repository inside HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Ltek&repository=notification-manager-card&category=dashboard)
+
+1. Click the badge above (adds this repo to HACS), or in HACS → **⋮ → Custom repositories** add `https://github.com/Ltek/notification-manager-card` as type **Dashboard**.
+2. Install **Automation Notifications Manager Card**. HACS adds the Dashboard resource for you.
+3. Clear your browser cache and hard-refresh.
+
+### Manual
+
 1. Create the folder `\config\www\community\notification-manager-card`.
 2. Download the card's `.js` file from [the repository](https://github.com/Ltek/notification-manager-card) and place it in that folder.
 3. Add it as a Dashboard resource:
