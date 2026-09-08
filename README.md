@@ -1,4 +1,4 @@
-# Automation Notifications Manager Card
+# Notification Manager Card
 
 A Home Assistant Dashboard card that finds **every notification your automations send** and puts them all in one place — grouped by automation, searchable, and fully editable. Stop opening automations one at a time to fix a typo, retarget a device, or reword an alert.
 
@@ -61,7 +61,7 @@ Every option below is fully point-and-click — no YAML required.
 [![Open your Home Assistant instance and open this repository inside HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Ltek&repository=notification-manager-card&category=dashboard)
 
 1. Click the badge above (adds this repo to HACS), or in HACS → **⋮ → Custom repositories** add `https://github.com/Ltek/notification-manager-card` as type **Dashboard**.
-2. Install **Automation Notifications Manager Card**. HACS adds the Dashboard resource for you.
+2. Install **Notification Manager Card**. HACS adds the Dashboard resource for you.
 3. Clear your browser cache and hard-refresh.
 
 ### Manual
@@ -76,10 +76,10 @@ Every option below is fully point-and-click — no YAML required.
 Then add the card from the card picker (**Notification Manager Card**), or in YAML:
 
 ```yaml
-type: custom:automation-notifications-manager-card
+type: custom:notification-manager-card
 ```
 
-> **Note:** the Dashboard card type is `custom:automation-notifications-manager-card`. Editing notifications requires an **admin** account (the same permission Home Assistant requires to edit automations).
+> **Note:** the Dashboard card type is `custom:notification-manager-card`. Editing notifications requires an **admin** account (the same permission Home Assistant requires to edit automations).
 
 ---
 

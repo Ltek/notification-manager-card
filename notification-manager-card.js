@@ -1,5 +1,5 @@
 // ============================================================================
-// Automation Notifications Manager Card
+// Notification Manager Card
 // ----------------------------------------------------------------------------
 // A Home Assistant custom Dashboard card that discovers EVERY notify.* action
 // embedded in your automations, groups them by automation, and lets you browse,
@@ -368,7 +368,7 @@ const DEFAULT_FILTERS = { target: '', automation: '', state: 'any', has_title: f
 
 function stubConfig() {
   return {
-    type: 'custom:automation-notifications-manager-card',
+    type: 'custom:notification-manager-card',
     title: '',
     columns: DEFAULT_COLUMNS.slice(),
     filters: { ...DEFAULT_FILTERS },
@@ -424,7 +424,7 @@ function normalizeConfigFull(config) {
 // to its default. Idempotent — normalizing twice yields the same object.
 function normalizeConfig(config) {
   const full = normalizeConfigFull(config || {});
-  const out = { type: full.type || 'custom:automation-notifications-manager-card' };
+  const out = { type: full.type || 'custom:notification-manager-card' };
   if (full.title && full.title.trim()) out.title = full.title;
   if (!sameColumnSet(full.columns, DEFAULT_COLUMNS)) {
     // Emit in canonical order for stability.
@@ -523,9 +523,9 @@ class ANMCard extends HTMLElement {
   }
 
   static getConfigElement() {
-    return document.createElement('automation-notifications-manager-card-editor');
+    return document.createElement('notification-manager-card-editor');
   }
-  static getStubConfig() { return { type: 'custom:automation-notifications-manager-card' }; }
+  static getStubConfig() { return { type: 'custom:notification-manager-card' }; }
 
   // ------------------------------------------------------------------------
   // DISCOVERY — build the row model from hass automations + cached configs.
@@ -1511,14 +1511,14 @@ class ANMCardEditor extends HTMLElement {
 // ============================================================================
 // REGISTER CUSTOM ELEMENTS
 // ============================================================================
-console.log(`📦 Registering automation-notifications-manager-card custom elements... [${BUILD_NUMBER}]`);
-customElements.define('automation-notifications-manager-card', ANMCard);
-customElements.define('automation-notifications-manager-card-editor', ANMCardEditor);
-console.log('[automation-notifications-manager-card] Loaded successfully -', BUILD_NUMBER);
+console.log(`📦 Registering notification-manager-card custom elements... [${BUILD_NUMBER}]`);
+customElements.define('notification-manager-card', ANMCard);
+customElements.define('notification-manager-card-editor', ANMCardEditor);
+console.log('[notification-manager-card] Loaded successfully -', BUILD_NUMBER);
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: 'automation-notifications-manager-card',
-  name: 'Automation Notifications Manager Card',
+  type: 'notification-manager-card',
+  name: 'Notification Manager Card',
   description: 'Browse and edit every notify action embedded in your automations, grouped by automation.',
 });
 
