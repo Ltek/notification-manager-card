@@ -70,10 +70,10 @@ Every option below is fully point-and-click — no YAML required.
 2. Download the card's `.js` file from [the repository](https://github.com/Ltek/notification-manager-card) and place it in that folder.
 3. Add it as a Dashboard resource:
    - **Settings → Dashboards → ⋮ → Resources → Add Resource**
-   - URL: `/local/community/notification-manager-card/automation-notifications-manager-card.js`  ·  Type: **JavaScript Module**
+   - URL: `/local/community/notification-manager-card/notification-manager-card.js`  ·  Type: **JavaScript Module**
 4. Clear your browser cache and hard-refresh.
 
-Then add the card from the card picker (**Automation Notifications Manager Card**), or in YAML:
+Then add the card from the card picker (**Notification Manager Card**), or in YAML:
 
 ```yaml
 type: custom:automation-notifications-manager-card
