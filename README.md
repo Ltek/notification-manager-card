@@ -115,4 +115,16 @@ type: custom:notification-manager-card
 ## Screenshots
 
 <!-- SCREENSHOTS:START -->
+<table>
+  <tr>
+    <td align="center" valign="top">
+      <img src="screenshots/screen1.JPG" width="100%" alt="screen1">
+    </td>
+    <td align="center" valign="top">
+      <img src="screenshots/screen2.JPG" width="100%" alt="screen2">
+    </td>
+    <td></td>
+    <td></td>
+  </tr>
+</table>
 <!-- SCREENSHOTS:END -->
