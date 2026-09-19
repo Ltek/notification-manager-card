@@ -8,9 +8,20 @@
 // — writing changes back via HA's REST config API.
 //
 // Author: LTek
-// Version: v2026.09.11.22
+// Version: v2026.09.16.25
 //
 // Changelog:
+//   v2026.09.16.25 — Blueprint automations with no notification inputs are now
+//                    omitted from the list (consistent with plain automations that
+//                    have no notify calls) — no more empty "no inputs" blueprints.
+//   v2026.09.16.24 — Blueprint notifications now read from the automation's
+//                    configured use_blueprint.input (recipient/title/message) —
+//                    HA does NOT expose a blueprint's action tree to a card, so the
+//                    prior blueprint/import fetch was removed (it always failed).
+//                    Read-only; heuristic input-name matching.
+//   v2026.09.11.23 — Blueprint scan attempt via WS blueprint/import (removed in .24
+//                    — that command imports from a URL and can't read installed
+//                    blueprints; every fetch errored). Template sensors clarified.
 //   v2026.09.11.22 — Page-section titles now show their item range (e.g. "1–25")
 //                    instead of "Page N" + a right-side range; total discovered
 //                    count moved to the divider ([icon] [text] : [qty]).
@@ -81,7 +92,7 @@
 // editMode/preview safety.
 // ============================================================================
 
-const BUILD_NUMBER = 'v2026.09.11.22';
+const BUILD_NUMBER = 'v2026.09.16.25';
 
 let DEBUG = false;
 function debugLog(...args) { if (DEBUG) { try { console.log('[ANM]', ...args); } catch (e) {} } }
@@ -457,6 +468,89 @@ function ensureSourceConfig(hass, type, id, onChange, force) {
       e.status = 'readonly'; e.error = formatWsError(err); e.fetchedAt = Date.now();
       if (onChange) { try { onChange(type, id); } catch (x) {} }
     });
+}
+
+// ----------------------------------------------------------------------------
+// BLUEPRINT NOTIFY EXTRACTION (from the automation's OWN config)
+// ----------------------------------------------------------------------------
+// HA does NOT expose a blueprint's YAML body (its action tree) to a dashboard
+// card — `blueprint/list` returns only metadata (name/description/input schema),
+// never the actions, and the resolved automation isn't stored anywhere readable.
+// BUT a blueprint automation's config carries `use_blueprint.input` — the values
+// the USER filled in — and for notification blueprints that's where the notify
+// target/device (and often the message/title) live. So we surface THOSE, read-only.
+//
+// Heuristics (input names are author-defined, so we match on name + value shape):
+//   target  ← value starts with "notify." / "mobile_app_", or name looks like a
+//             notify recipient/target/device/service
+//   title   ← input name looks like a title/subject
+//   message ← input name looks like a message/body/text
+// A value can be a string, or an object like { entity_id | device_id }.
+const RE_BP_TITLE = /(^|_)(title|subject|heading)($|_)/i;
+const RE_BP_MESSAGE = /(^|_)(message|body|text|content)($|_)/i;
+const RE_BP_TARGET = /(^|_)(notif|target|device|recipient|service|mobile|push|person|who|send)/i;
+
+function _bpValToText(v) {
+  if (v == null) return '';
+  if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (isPlainObject(v)) {
+    // Common target shapes: {entity_id}, {device_id}, {area_id}.
+    const parts = [];
+    ['entity_id', 'device_id', 'area_id'].forEach(k => { if (v[k] != null) parts.push([].concat(v[k]).join(', ')); });
+    if (parts.length) return parts.join(' · ');
+    try { return JSON.stringify(v); } catch (e) { return String(v); }
+  }
+  if (Array.isArray(v)) return v.map(_bpValToText).join(', ');
+  return String(v);
+}
+function _looksLikeNotifyTarget(name, val) {
+  const s = typeof val === 'string' ? val : '';
+  if (/^notify\./.test(s) || /^mobile_app_/.test(s)) return true;
+  if (isPlainObject(val) && (val.entity_id || val.device_id)) {
+    const ids = [].concat(val.entity_id || val.device_id || []).join(' ');
+    if (/notify\.|mobile_app_/.test(ids)) return true;
+    // device_id targets can't be resolved to notify here, but a target-named
+    // input is still the notification recipient.
+  }
+  return RE_BP_TARGET.test(name || '');
+}
+
+// Build read-only "rows" for a blueprint automation from its use_blueprint.input.
+// Returns [{ service, target, title, message, inputName }]. If we can identify one
+// or more notify targets, we emit one row per target (sharing title/message);
+// otherwise a single summary row of the configured inputs so nothing is hidden.
+function extractBlueprintNotifyRows(cfg) {
+  const input = (isPlainObject(cfg) && isPlainObject(cfg.use_blueprint) && isPlainObject(cfg.use_blueprint.input))
+    ? cfg.use_blueprint.input : {};
+  const names = Object.keys(input);
+  if (!names.length) return [];
+
+  // Find title / message inputs (first match wins).
+  const titleName = names.find(n => RE_BP_TITLE.test(n));
+  const messageName = names.find(n => RE_BP_MESSAGE.test(n));
+  const title = titleName ? _bpValToText(input[titleName]) : '';
+  const message = messageName ? _bpValToText(input[messageName]) : '';
+
+  // Find target inputs.
+  const targetNames = names.filter(n => n !== titleName && n !== messageName && _looksLikeNotifyTarget(n, input[n]));
+  const rows = [];
+  targetNames.forEach(n => {
+    const raw = input[n];
+    const asStr = typeof raw === 'string' ? raw : '';
+    const service = /^notify\./.test(asStr) ? asStr : (/^mobile_app_/.test(asStr) ? 'notify.' + asStr : '');
+    rows.push({
+      service: service || `input: ${n}`,
+      target: (isPlainObject(raw) && (raw.entity_id || raw.device_id)) ? raw : null,
+      title, message,
+      inputName: n, inputValue: _bpValToText(raw)
+    });
+  });
+  // No identifiable target but there IS a message/title → still show one row so the
+  // notification content is visible.
+  if (!rows.length && (title || message)) {
+    rows.push({ service: 'blueprint notification', target: null, title, message, inputName: '', inputValue: '' });
+  }
+  return rows;
 }
 
 // Background prefetch, concurrency-limited, so filters populate without blocking.
@@ -853,6 +947,22 @@ class ANMCard extends HTMLElement {
       if (cfgId && def.configPath && entry.status === 'loaded' && cfg) {
         if (isBlueprint) {
           g.editable = false;   // blueprint config holds no editable action tree
+          // Surface the notification-related INPUTS the user configured on this
+          // blueprint automation (its action tree isn't exposed by HA). Read-only.
+          g.blueprintStatus = 'loaded';
+          const bpRows = extractBlueprintNotifyRows(cfg);
+          bpRows.forEach((br, i) => {
+            const rowId = `${it.type}:${cfgId}::bp::${i}`;
+            rows.push({
+              rowId, sourceType: it.type, entityId: it.entityId, configId: cfgId,
+              name, state: st.state, lastTriggered: g.lastTriggered,
+              editable: false, fromBlueprint: true, blueprintPath: g.blueprintPath,
+              service: br.service, target: br.target, title: br.title, message: br.message,
+              data: {}, bpInputName: br.inputName, bpInputValue: br.inputValue,
+              _dirty: false, _edit: false, _draft: null
+            });
+            g.rows.push(rowId);
+          });
         } else {
           let actionKey = null, actions;
           for (const k of def.actionKeys) { if (cfg[k] !== undefined) { actionKey = k; actions = cfg[k]; break; } }
@@ -877,13 +987,13 @@ class ANMCard extends HTMLElement {
           });
         }
       }
-      // Keep groups that: have rows, are loading, are blueprint (to show the
-      // badge), or errored/readonly with a config id (to show why). Skip loaded
-      // sources with no notify calls, and unsupported (template) sources.
+      // Keep groups that: have rows, are still loading, or errored/readonly with a
+      // config id (to show WHY it can't be read). Skip loaded sources with no
+      // notifications — including blueprint automations whose inputs hold none —
+      // and unsupported (template) sources.
       const keep = g.rows.length
         || g.status === 'loading' || g.status === 'idle'
-        || g.isBlueprint
-        || (cfgId && def.configPath && g.status === 'readonly');
+        || (cfgId && def.configPath && g.status === 'readonly' && !g.isBlueprint);
       if (keep) groups.push(g);
     });
     this._rows = rows;
@@ -1317,6 +1427,7 @@ class ANMCard extends HTMLElement {
               ${dchk('show_blueprint', 'Blueprint Automations')}
               ${dchk('show_scripts', 'Scripts')}
               ${dchk('show_template_sensors', 'Template Sensors')}
+              <div class="anm-d-note">Template sensors compute values — they don't send notifications, so no rows appear for them.</div>
             </div>
             <div class="anm-d-group">
               <div class="anm-d-title">Editability</div>
@@ -1490,7 +1601,23 @@ class ANMCard extends HTMLElement {
         ? `<div class="anm-skeleton">Click 'Scan Now' to load details</div>`
         : `<div class="anm-skeleton">Loading config…</div>`;
     } else if (g.isBlueprint) {
-      body = `<div class="anm-readonly-note">Built from blueprint <b>${escapeHtml(g.blueprintPath || '')}</b>. Its notifications are defined in the blueprint and can't be edited here — open the blueprint to change them.</div>`;
+      // Blueprint automation: HA doesn't expose the blueprint's action tree, so we
+      // surface the notification INPUTS the user configured on this automation.
+      const bpHeader = `<div class="anm-readonly-note">Built from blueprint <b>${escapeHtml(g.blueprintPath || '')}</b>. Home Assistant doesn't expose a blueprint's actions, so the recipients/message below are read from this automation's configured inputs (read-only). Open the automation to change them.</div>`;
+      if (!visRows.length) {
+        body = bpHeader + `<div class="anm-readonly-note">No notification-related inputs detected on this blueprint automation.</div>`;
+      } else {
+        body = bpHeader + `
+          <table class="anm-table">
+            <thead><tr>
+              <th data-col="target">Target</th>
+              <th data-col="title">Title</th>
+              <th data-col="message">Message</th>
+              <th class="anm-actions-h"></th>
+            </tr></thead>
+            <tbody>${visRows.map(r => this._renderRow(r, g)).join('')}</tbody>
+          </table>`;
+      }
     } else if (!g.editable) {
       body = `<div class="anm-readonly-note">Defined in YAML/packages — read-only here.${g.error ? ' (' + escapeHtml(g.error) + ')' : ''}</div>`;
     } else if (!visRows.length) {
@@ -1530,18 +1657,27 @@ class ANMCard extends HTMLElement {
     const selected = this._selection && this._selection.has(r.rowId);
 
     if (!editing) {
-      return `
-        <tr class="anm-row${dirty}${selected ? ' anm-selected' : ''}" data-row-id="${escapeHtml(r.rowId)}">
-          <td data-col="target">
+      // Read-only rows (blueprint / YAML) get no edit/test/select controls, and
+      // the target isn't a reverse-lookup link either (we can't act on it here).
+      const ro = !r.editable;
+      const cell1 = ro
+        ? `<td data-col="target"><span class="anm-svc" title="${escapeHtml(r.service || '')}">${escapeHtml(svcShort)}</span>${targetChip}${r.fromBlueprint ? '<span class="anm-tchip" title="From a blueprint">bp</span>' : ''}</td>`
+        : `<td data-col="target">
             <input type="checkbox" class="anm-row-sel" data-row-id="${escapeHtml(r.rowId)}" title="Select for bulk actions"${selected ? ' checked' : ''}>
             <span class="anm-svc anm-svc-link" data-target="${escapeHtml(r.service || '')}" title="Show everything using ${escapeHtml(r.service || '')}">${escapeHtml(svcShort)}</span>${targetChip}
-          </td>
-          <td data-col="title"><span class="anm-cell-tpl" data-tpl-cell="${escapeHtml(r.rowId)}::title" data-tpl="${rawTitle}">${rawTitle || '<span class="anm-none">—</span>'}</span></td>
-          <td data-col="message"><span class="anm-cell-tpl" data-tpl-cell="${escapeHtml(r.rowId)}::message" data-tpl="${rawMsg}">${rawMsg || '<span class="anm-none">—</span>'}</span></td>
-          <td class="anm-actions">
+          </td>`;
+      const actionsCell = ro
+        ? `<td class="anm-actions"><ha-icon icon="mdi:lock" class="anm-row-lock" title="Read-only"></ha-icon></td>`
+        : `<td class="anm-actions">
             <button class="anm-btn-test" data-row-id="${escapeHtml(r.rowId)}" title="Send a test notification"><ha-icon icon="mdi:send"></ha-icon></button>
             <button class="anm-btn-edit" data-row-id="${escapeHtml(r.rowId)}" title="Edit">✎</button>
-          </td>
+          </td>`;
+      return `
+        <tr class="anm-row${dirty}${selected ? ' anm-selected' : ''}${ro ? ' anm-row-ro' : ''}" data-row-id="${escapeHtml(r.rowId)}">
+          ${cell1}
+          <td data-col="title"><span class="anm-cell-tpl" data-tpl-cell="${escapeHtml(r.rowId)}::title" data-tpl="${rawTitle}">${rawTitle || '<span class="anm-none">—</span>'}</span></td>
+          <td data-col="message"><span class="anm-cell-tpl" data-tpl-cell="${escapeHtml(r.rowId)}::message" data-tpl="${rawMsg}">${rawMsg || '<span class="anm-none">—</span>'}</span></td>
+          ${actionsCell}
         </tr>`;
     }
     const dataJson = escapeHtml(JSON.stringify(draft.data || {}, null, 2));
@@ -1628,6 +1764,7 @@ class ANMCard extends HTMLElement {
       .anm-sort-add { align-self: flex-start; background: transparent; border: 1px dashed var(--primary-color,#2196F3); color: var(--primary-color,#2196F3); border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 12px; }
       .anm-d-group { display: flex; flex-direction: column; gap: 6px; min-width: 150px; }
       .anm-d-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--secondary-text-color,#888); }
+      .anm-d-note { font-size: 11px; font-style: italic; color: var(--secondary-text-color,#777); line-height: 1.4; }
       .anm-groups { display: flex; flex-direction: column; gap: 8px; }
       .anm-pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px 4px 2px; margin-top: 4px; }
       .anm-pg-info { font-size: 12px; color: var(--secondary-text-color,#888); }
@@ -1671,6 +1808,8 @@ class ANMCard extends HTMLElement {
       .anm-svc-link { cursor: pointer; }
       .anm-svc-link:hover { color: var(--primary-color,#2196F3); text-decoration: underline; }
       .anm-row-sel { margin-right: 6px; vertical-align: middle; }
+      .anm-row-ro td { opacity: 0.9; }
+      .anm-row-lock { --mdc-icon-size: 14px; color: var(--secondary-text-color,#888); }
       .anm-row.anm-selected td { background: rgba(var(--rgb-primary-color,33,150,243),0.08); }
       .anm-tchip { margin-left: 6px; font-size: 10px; padding: 1px 5px; border-radius: 999px; border: 1px solid var(--divider-color,#444); color: var(--secondary-text-color,#aaa); }
       .anm-cell-tpl { white-space: pre-wrap; word-break: break-word; }
@@ -2607,6 +2746,7 @@ class ANMCardEditor extends HTMLElement {
             ${dchk('show_blueprint', 'Blueprint Automations')}
             ${dchk('show_scripts', 'Scripts')}
             ${dchk('show_template_sensors', 'Template Sensors')}
+            <div class="anm-ed-subhint">Template sensors compute values — they don't send notifications, so no rows appear for them. Blueprint automations show the notification recipients/message read from the automation's configured inputs (HA doesn't expose a blueprint's actions); those rows are read-only.</div>
             <div class="anm-ed-group-title">Editability</div>
             ${dchk('editable', 'Editable')}
             ${dchk('not_editable', 'Not Editable')}
