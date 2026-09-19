@@ -13,23 +13,14 @@ Current build: **v2026.09.16.25**
 
 ---
 
-## What's new
+## FEATURES
 
-**2026-09-16**
-- **Scans scripts too**, not just automations — script `sequence` notify calls are found and fully editable.
-- **Blueprint automations** show who they notify, read from the automation's configured **inputs** (Home Assistant doesn't expose a blueprint's actions), read-only. Blueprints with no notification inputs are omitted.
-- **Right-side type icon** per source (automation / blueprint / script) doubles as the enabled/disabled indicator for automations — green when on, grey when off, click to toggle.
-
-**2026-09-11**
-- **Sorting** — sort the list by name, last-triggered, notification count, state, or source type (ascending/descending), live on the card and as an editor default.
-- **Pagination** — break long lists into pages, optionally rendered as **collapsible page sections**; the list fills in progressively as sources are scanned.
-- **Styled divider** with a user-defined icon + label and a running discovered-count (e.g. `📛 DISCOVERED NOTIFICATIONS : 87`), plus an optional **header icon**.
-- **Scan controls** — optional **Auto-Scan off** mode with a **Scan Now** button (type a name filter first to scan only matching sources); a live scan-status line; optional "last scan" time.
-- **Safety** — **Undo last save**, a **before→after diff** in the save confirmation, and **pre-save template validation**.
-- **Actions & bulk operations** — test-fire, inline enable/disable, duplicate, delete, reverse-lookup, and bulk test-fire / enable-disable / retarget.
-
-**2026-09-08**
-- **First release.** Browse and edit the notify actions embedded across all your automations, grouped by source, with live filters and per-column show/hide.
+- **Scans automations, scripts & blueprints** — script `sequence` notify calls are found and fully editable; blueprint automations show who they notify, read from their configured **inputs** (read-only, since HA doesn't expose a blueprint's actions).
+- **Actions & bulk operations** — test-fire, inline enable/disable, duplicate, delete, reverse-lookup, plus bulk test-fire / enable-disable / retarget across a selection.
+- **Sort, paginate & browse** — sort by name, last-triggered, count, state, or type; break long lists into pages (optionally as collapsible sections) that fill in progressively; a per-source type icon doubles as the on/off toggle.
+- **Save safety** — **Undo last save**, a **before→after diff** in the confirmation, and **pre-save template validation**.
+- **Scan controls** — optional **Auto-Scan off** mode with a **Scan Now** button (filter by name first to scan only matching sources), a live scan-status line, and an optional "last scan" time.
+- **Appearance** — a styled divider with a user-defined icon + label and running discovered-count (e.g. `📛 DISCOVERED NOTIFICATIONS : 87`), an optional header icon, and adjustable name label size/weight.
 
 ---
 
